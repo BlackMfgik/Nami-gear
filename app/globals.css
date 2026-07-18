@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #171717;
+  --color-paper: #ffffff;
+  --color-sand: #f6f5f2;
+  --color-line: #dedbd6;
+  --color-muted: #6f6b67;
+  --color-warm: #8d6e63;
+  --shadow-soft: 0 12px 40px rgba(23, 23, 23, .08);
+  --shadow-card: 0 4px 18px rgba(23, 23, 23, .06);
+}
+
+@theme inline {
+  --font-body: var(--nami-font-body), sans-serif;
+  --font-mono: var(--nami-font-mono), monospace;
+  --font-display: var(--nami-font-display), sans-serif;
+}
+
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; color: #171717; background: #fff; font-family: var(--nami-font-body), sans-serif; -webkit-font-smoothing: antialiased; }
+button { -webkit-tap-highlight-color: transparent; }
+::selection { background: #171717; color: white; }
+
+@layer components {
+  .btn-primary { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink px-6 font-display text-xs font-bold uppercase tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-ink focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-neutral-300; }
+  .btn-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line bg-white px-5 font-display text-xs font-bold uppercase tracking-wide transition hover:border-ink hover:bg-sand focus:outline-none focus:ring-2 focus:ring-ink focus:ring-offset-2; }
+  .icon-button { @apply relative grid size-11 place-items-center rounded-full text-ink transition hover:bg-sand focus:outline-none focus:ring-2 focus:ring-ink; }
+  .field { @apply h-12 w-full rounded-xl border border-line bg-white px-4 text-sm outline-none transition focus:border-ink focus:ring-2 focus:ring-ink/10; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+.product-photo { transform: scale(1.23); object-position: 76% 76%; }
+
+.cart-popover {
+  transform: translateY(-100%);
+}
+
+.cart-popover[data-open="true"] {
+  transform: translateY(0);
+}
