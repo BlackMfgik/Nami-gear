@@ -3,7 +3,7 @@ export type Material = "cloth" | "glass" | "dots";
 export type GlideType = "balanced" | "control" | "speed" | "quiet" | "durable";
 export type StockState = "in-stock" | "preorder" | "out-of-stock";
 
-export type ProductColor = { name: string; hex: string };
+export type ProductColor = { name: string; hex: string; image?: string };
 
 export type Product = {
   id: string;
@@ -59,6 +59,7 @@ export type CartItem = {
   productId: string;
   name: string;
   brand: string;
+  material?: Material;
   image: string;
   base: string;
   size: string;

@@ -33,7 +33,6 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
-.product-photo { transform: scale(1.23); object-position: 76% 76%; }
 
 .cart-popover {
   transform: translateY(-100%);
@@ -41,4 +40,14 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .cart-popover[data-open="true"] {
   transform: translateY(0);
+}
+
+@keyframes hero-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.hero-progress {
+  animation: hero-progress 6s linear forwards;
+  transform-origin: left;
 }

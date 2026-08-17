@@ -3,7 +3,8 @@
 import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ArtisanVariant, Product } from "@/lib/types";
-import { formatUAH } from "@/lib/catalog";
+import { formatUAH, sortMousepadSizes } from "@/lib/catalog";
+import { getProductColorImage } from "@/lib/product-color-images";
 import { useCart } from "@/store/cart";
 
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toUpperCase();
@@ -23,14 +24,17 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
   const add = useCart((state) => state.add);
   const liveVariants = variants?.filter((variant) => variant.base && variant.size && variant.color);
   const bases = liveVariants?.length ? unique(liveVariants.map((variant) => variant.base)) : product.bases;
-  const sizes = liveVariants?.length ? unique(liveVariants.map((variant) => variant.size)) : product.sizes;
-  const colorNames = liveVariants?.length ? unique(liveVariants.map((variant) => variant.color)) : product.colors.map((item) => item.name);
+  const unsortedSizes = liveVariants?.length ? unique(liveVariants.map((variant) => variant.size)) : product.sizes;
+  const sizes = product.category === "mousepad" ? sortMousepadSizes(unsortedSizes) : unsortedSizes;
+  const colorNames = unique([...product.colors.map((item) => item.name), ...(liveVariants?.map((variant) => variant.color) ?? [])]);
   const colors = colorNames.map((name) => product.colors.find((item) => normalize(item.name) === normalize(name)) ?? fallbackColor(name));
-  const firstAvailable = liveVariants?.find((variant) => variant.inStock) ?? liveVariants?.[0];
+  const preferredColor = product.colors[0]?.name;
+  const firstAvailable = liveVariants?.find((variant) => variant.inStock && normalize(variant.color) === normalize(preferredColor ?? "")) ?? liveVariants?.find((variant) => variant.inStock) ?? liveVariants?.[0];
   const [base, setBase] = useState(() => firstAvailable?.base ?? product.bases.find((item) => item === "SOFT") ?? product.bases[0]);
   const [size, setSize] = useState(() => firstAvailable?.size ?? product.sizes.find((item) => item === "XL") ?? product.sizes.at(-1) ?? product.sizes[0]);
-  const [color, setColor] = useState(() => firstAvailable?.color ?? product.colors[0].name);
-  const galleryImages = [product.image, ...product.gallery];
+  const [color, setColor] = useState(() => preferredColor ?? firstAvailable?.color ?? "");
+  const selectedColorImage = getProductColorImage(product, color);
+  const galleryImages = [selectedColorImage, ...product.gallery.filter((image) => image !== selectedColorImage)];
   const imageCount = galleryImages.length;
   const [activeImage, setActiveImage] = useState(0);
 
@@ -57,15 +61,23 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
     if (!liveVariants?.length) {
       if (kind === "base") setBase(value);
       if (kind === "size") setSize(value);
-      if (kind === "color") setColor(value);
+      if (kind === "color") { setColor(value); setActiveImage(0); }
       return;
     }
-    const candidates = liveVariants.filter((variant) => variant.inStock && normalize(variant[kind]) === normalize(value));
-    const candidate = candidates.find((variant) => (kind === "base" || normalize(variant.base) === normalize(base)) && (kind === "size" || normalize(variant.size) === normalize(size)) && (kind === "color" || normalize(variant.color) === normalize(color))) ?? candidates[0];
+    const matchingVariants = liveVariants.filter((variant) => normalize(variant[kind]) === normalize(value));
+    if (kind === "color" && !matchingVariants.length) {
+      setColor(value);
+      setActiveImage(0);
+      return;
+    }
+    const candidates = kind === "color" ? matchingVariants : matchingVariants.filter((variant) => variant.inStock);
+    const compatible = candidates.filter((variant) => (kind === "base" || normalize(variant.base) === normalize(base)) && (kind === "size" || normalize(variant.size) === normalize(size)) && (kind === "color" || normalize(variant.color) === normalize(color)));
+    const candidate = compatible.find((variant) => variant.inStock) ?? candidates.find((variant) => variant.inStock) ?? compatible[0] ?? candidates[0];
     if (!candidate) return;
     setBase(candidate.base);
     setSize(candidate.size);
     setColor(candidate.color);
+    if (kind === "color") setActiveImage(0);
   };
   const changeSize = (value: string) => {
     changeVariantOption("size", value);
@@ -73,7 +85,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
   };
   const addToCart = () => {
     if (!selectionAvailable) return;
-    add({ key: `${product.id}__${base}__${size}__${color}`, productId: product.id, name: product.name, brand: product.brand, image: product.image, base, size, color, price });
+    add({ key: `${product.id}__${base}__${size}__${color}`, productId: product.id, name: product.name, brand: product.brand, material: product.material, image: selectedColorImage, base, size, color, price });
     onClose();
   };
 
@@ -84,7 +96,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
         <div className="overflow-y-auto p-5 sm:p-6">
           <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#f3f2ef]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="h-full w-full object-contain" src={galleryImages[activeImage]} alt={`${product.brand} ${product.name}, фото ${activeImage + 1}`} />
+            <img className="h-full w-full object-cover" src={galleryImages[activeImage]} alt={`${product.brand} ${product.name}, ${color}, фото ${activeImage + 1}`} />
             {imageCount > 1 && <>
               <button className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-black/10 bg-white/90 shadow-sm backdrop-blur transition hover:bg-white" onClick={() => setActiveImage((index) => (index - 1 + imageCount) % imageCount)} aria-label="Попереднє фото"><ChevronLeft className="size-5" /></button>
               <button className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-black/10 bg-white/90 shadow-sm backdrop-blur transition hover:bg-white" onClick={() => setActiveImage((index) => (index + 1) % imageCount)} aria-label="Наступне фото"><ChevronRight className="size-5" /></button>
@@ -96,7 +108,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
               {galleryImages.map((image, index) => (
                 <button key={image} onClick={() => setActiveImage(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-[#f3f2ef] transition ${activeImage === index ? "border-ink" : "border-transparent hover:border-line"}`} aria-label={`Показати фото ${index + 1}`} aria-current={activeImage === index ? "true" : undefined}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image} alt="" className="h-full w-full object-contain" />
+                  <img src={image} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>
@@ -105,7 +117,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
           <p className="mt-1 text-sm leading-6 text-muted">{product.tagline}</p>
           <OptionGroup label={product.category === "skates" ? "Матеріал" : "База (жорсткість)"} value={base} options={bases} current={base} available={(value) => optionAvailable("base", value)} onChange={(value) => changeVariantOption("base", value)} />
           <OptionGroup label={product.category === "skates" ? "Комплект" : "Розмір"} value={size} options={sizes} current={size} available={(value) => optionAvailable("size", value)} onChange={changeSize} />
-          <div className="mt-5"><div className="mb-3 flex justify-between font-mono text-[10px] uppercase tracking-wider text-muted"><span>Колір</span><span className="text-ink">{color}</span></div><div className="flex flex-wrap gap-4">{colors.map((item) => { const enabled = optionAvailable("color", item.name); return <button key={item.name} disabled={!enabled} onClick={() => changeVariantOption("color", item.name)} className="group/color flex flex-col items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30" aria-label={item.name}><span className={`grid size-9 place-items-center rounded-full border-2 ${normalize(color) === normalize(item.name) ? "border-ink" : "border-line"}`} style={{ background: item.hex }}>{normalize(color) === normalize(item.name) && <Check className="size-4 text-white mix-blend-difference" />}</span><span className="font-mono text-[9px] text-muted">{item.name}</span></button>; })}</div></div>
+          <div className="mt-5"><div className="mb-3 flex justify-between font-mono text-[10px] uppercase tracking-wider text-muted"><span>Колір</span><span className="text-ink">{color}</span></div><div className="flex flex-wrap gap-4">{colors.map((item) => { const enabled = optionAvailable("color", item.name); return <button key={item.name} onClick={() => changeVariantOption("color", item.name)} className={`group/color flex flex-col items-center gap-2 transition ${enabled ? "" : "opacity-45"}`} aria-label={`${item.name}${enabled ? "" : " — немає в наявності"}`} aria-disabled={!enabled} title={enabled ? item.name : `${item.name} — немає в наявності`}><span className={`grid size-9 place-items-center rounded-full border-2 ${normalize(color) === normalize(item.name) ? "border-ink" : "border-line"}`} style={{ background: item.hex }}>{normalize(color) === normalize(item.name) && <Check className="size-4 text-white mix-blend-difference" />}</span><span className="font-mono text-[9px] text-muted">{item.name}</span></button>; })}</div></div>
         </div>
         <div className="flex shrink-0 items-center gap-4 border-t border-line bg-sand p-5 sm:px-6"><div className="shrink-0"><strong className="block font-display text-xl font-bold">{formatUAH(price)}</strong><span className="font-mono text-[9px] text-muted">{product.origin}</span></div><button className="btn-primary flex-1" onClick={addToCart} disabled={!selectionAvailable}>{selectionAvailable ? "Додати в кошик" : "Немає в наявності"}</button></div>
       </div>

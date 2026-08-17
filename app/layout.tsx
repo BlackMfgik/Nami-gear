@@ -25,7 +25,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="uk">
+    <html lang="uk" data-scroll-behavior="smooth">
       <body
         suppressHydrationWarning
         className={`${inter.variable} ${mono.variable} ${display.variable}`}

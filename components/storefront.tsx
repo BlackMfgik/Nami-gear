@@ -9,18 +9,16 @@ import { formatUAH, materialLabels, typeLabels } from "@/lib/catalog";
 import { useCart } from "@/store/cart";
 import { CartDrawer } from "./cart-drawer";
 import { ProductModal } from "./product-modal";
+import { ProductCard } from "./product-card";
 import { ProductVisual } from "./product-visual";
 import { SearchDialog } from "./search-dialog";
-
-const stockLabels = {
-  "in-stock": { text: "В наявності", classes: "bg-green-100 text-green-800" },
-  preorder: { text: "Уточнюємо", classes: "bg-orange-100 text-orange-800" },
-  "out-of-stock": { text: "Немає", classes: "bg-red-100 text-red-800" }
-};
 
 export function Storefront({ initialProducts }: { initialProducts: Product[] }) {
   const [category, setCategory] = useState<Category>("mousepad");
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroSlide, setHeroSlide] = useState(1);
+  const [heroDragOffset, setHeroDragOffset] = useState(0);
+  const [heroTransitionEnabled, setHeroTransitionEnabled] = useState(false);
   const [selected, setSelected] = useState<Product | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -28,8 +26,22 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
   const [material, setMaterial] = useState<Material | "all">("all");
   const [type, setType] = useState<GlideType | "all">("all");
   const filterRef = useRef<HTMLDivElement>(null);
+  const heroPointerStartRef = useRef<number | null>(null);
+  const heroAnimatingRef = useRef(false);
+  const heroSuppressClickRef = useRef(false);
   const cart = useCart();
   const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+  const { data: catalogProducts = initialProducts } = useQuery<Product[]>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const response = await fetch("/api/products", { cache: "no-store" });
+      if (!response.ok) throw new Error("Catalog request failed");
+      return response.json();
+    },
+    initialData: initialProducts,
+    refetchInterval: 60_000,
+    retry: 1
+  });
   const { data: artisanStock } = useQuery<ArtisanStockResponse>({
     queryKey: ["artisan-stock"],
     queryFn: async () => { const response = await fetch("/api/artisan-stock"); if (!response.ok) throw new Error("Stock request failed"); return response.json(); },
@@ -37,7 +49,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
     retry: 1
   });
 
-  const products = useMemo(() => initialProducts.map((product) => {
+  const products = useMemo(() => catalogProducts.map((product) => {
     const variants = artisanStock?.products[product.id]?.variants;
     if (!product.syncSource || !variants) return product;
     const livePrices = variants.map((variant) => variant.retailUAH).filter((price): price is number => typeof price === "number");
@@ -46,22 +58,44 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
       price: livePrices.length ? Math.min(...livePrices) : product.price,
       stock: variants.some((variant) => variant.inStock) ? "in-stock" as const : "out-of-stock" as const
     };
-  }), [artisanStock, initialProducts]);
+  }), [artisanStock, catalogProducts]);
   const categoryProducts = useMemo(() => products.filter((product) => product.category === category), [category, products]);
   const brands = useMemo(() => [...new Set(categoryProducts.map((product) => product.brand))], [categoryProducts]);
   const materials = useMemo(() => [...new Set(categoryProducts.map((product) => product.material))], [categoryProducts]);
   const types = useMemo(() => [...new Set(categoryProducts.map((product) => product.type))], [categoryProducts]);
   const filtered = useMemo(() => categoryProducts.filter((product) => (brand === "all" || product.brand === brand) && (material === "all" || product.material === material) && (type === "all" || product.type === type)), [brand, categoryProducts, material, type]);
   const activeFilterCount = Number(brand !== "all") + Number(material !== "all") + Number(type !== "all");
-  const heroProducts = products.filter((product) => product.category === "mousepad").slice(0, 4);
-  const hero = heroProducts[heroIndex % heroProducts.length];
+  const heroProducts = useMemo(() => products.filter((product) => product.category === "mousepad").slice(0, 4), [products]);
+  const heroSlides = useMemo(() => heroProducts.length ? [heroProducts.at(-1)!, ...heroProducts, heroProducts[0]] : [], [heroProducts]);
+
+  const moveHero = useCallback((direction: -1 | 1) => {
+    if (heroProducts.length < 2 || heroAnimatingRef.current) return;
+    heroAnimatingRef.current = true;
+    setHeroTransitionEnabled(true);
+    setHeroDragOffset(0);
+    setHeroSlide((slide) => slide + direction);
+    setHeroIndex((index) => (index + direction + heroProducts.length) % heroProducts.length);
+  }, [heroProducts.length]);
+
+  const selectHero = useCallback((index: number) => {
+    if (index === heroIndex || heroAnimatingRef.current) return;
+    heroAnimatingRef.current = true;
+    setHeroTransitionEnabled(true);
+    setHeroDragOffset(0);
+    setHeroIndex(index);
+    setHeroSlide(index + 1);
+  }, [heroIndex]);
 
   const selectCategory = useCallback((next: Category, scroll = true) => {
     setCategory(next); setBrand("all"); setMaterial("all"); setType("all"); setFiltersOpen(false);
     if (scroll) window.setTimeout(() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }), 0);
   }, []);
 
-  useEffect(() => { const timer = window.setInterval(() => setHeroIndex((index) => (index + 1) % heroProducts.length), 6000); return () => window.clearInterval(timer); }, [heroProducts.length]);
+  useEffect(() => {
+    if (heroProducts.length < 2) return;
+    const timer = window.setInterval(() => moveHero(1), 6000);
+    return () => window.clearInterval(timer);
+  }, [heroIndex, heroProducts.length, moveHero]);
   useEffect(() => {
     const handler = (event: MouseEvent) => { if (filtersOpen && filterRef.current && !filterRef.current.contains(event.target as Node)) setFiltersOpen(false); };
     document.addEventListener("mousedown", handler); return () => document.removeEventListener("mousedown", handler);
@@ -82,14 +116,86 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
       </header>
 
       <main>
-        <section className="relative mx-3 -mt-[52px] min-h-[600px] overflow-hidden rounded-[28px] bg-sand lg:min-h-[calc(100vh-24px)]" aria-label="Популярні товари">
-          <div className="mx-auto grid min-h-[600px] max-w-7xl items-center gap-8 px-6 pb-16 pt-32 lg:min-h-[calc(100vh-24px)] lg:grid-cols-2 lg:px-12 lg:pb-16 lg:pt-28">
-            <div className="max-w-xl"><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-warm">★ {hero.series}</p><h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-6xl">{hero.name}</h1><p className="mt-5 max-w-lg text-base leading-7 text-muted">{hero.tagline}</p><p className="mt-6 font-display text-xl font-bold">від {formatUAH(hero.price)}</p><div className="mt-7 flex flex-wrap gap-3"><button className="btn-primary" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })}>Переглянути каталог</button><button className="btn-secondary" onClick={() => setSelected(hero)}>Швидкий перегляд</button></div></div>
-            <ProductVisual product={hero} className="aspect-square rounded-3xl" />
+        <section className="relative mx-3 -mt-[52px] min-h-[600px] overflow-hidden rounded-[28px] bg-sand lg:min-h-[calc(100vh-24px)]" aria-label="Популярні товари" aria-roledescription="carousel">
+          <div
+            className={`flex touch-pan-y select-none ${heroTransitionEnabled ? "transition-transform duration-700 ease-[cubic-bezier(.22,1,.36,1)]" : ""}`}
+            style={{ transform: `translate3d(calc(-${heroSlide * 100}% + ${heroDragOffset}px), 0, 0)` }}
+            onPointerDown={(event) => {
+              if (heroAnimatingRef.current || heroProducts.length < 2) return;
+              heroPointerStartRef.current = event.clientX;
+              heroSuppressClickRef.current = false;
+              setHeroTransitionEnabled(false);
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (heroPointerStartRef.current === null) return;
+              const offset = event.clientX - heroPointerStartRef.current;
+              heroSuppressClickRef.current = Math.abs(offset) > 10;
+              setHeroDragOffset(offset);
+            }}
+            onPointerUp={(event) => {
+              if (heroPointerStartRef.current === null) return;
+              const offset = event.clientX - heroPointerStartRef.current;
+              heroPointerStartRef.current = null;
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+              if (Math.abs(offset) >= 50) moveHero(offset < 0 ? 1 : -1);
+              else {
+                setHeroTransitionEnabled(true);
+                setHeroDragOffset(0);
+              }
+            }}
+            onPointerCancel={() => {
+              heroPointerStartRef.current = null;
+              setHeroTransitionEnabled(true);
+              setHeroDragOffset(0);
+            }}
+            onClickCapture={(event) => {
+              if (!heroSuppressClickRef.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+              heroSuppressClickRef.current = false;
+            }}
+            onTransitionEnd={(event) => {
+              if (event.target !== event.currentTarget) return;
+              heroAnimatingRef.current = false;
+              if (heroSlide === 0) {
+                setHeroTransitionEnabled(false);
+                setHeroSlide(heroProducts.length);
+              } else if (heroSlide === heroProducts.length + 1) {
+                setHeroTransitionEnabled(false);
+                setHeroSlide(1);
+              }
+            }}
+          >
+            {heroSlides.map((product, slideIndex) => {
+              const isClone = slideIndex === 0 || slideIndex === heroSlides.length - 1;
+              return (
+                <div key={`${product.id}-${slideIndex}`} className="min-w-full" aria-hidden={isClone || undefined}>
+                  <div className="mx-auto grid min-h-[600px] max-w-7xl items-center gap-8 px-6 pb-16 pt-32 lg:min-h-[calc(100vh-24px)] lg:grid-cols-2 lg:px-12 lg:pb-16 lg:pt-28">
+                    <div className="max-w-xl"><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-warm">★ {product.series}</p><h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-6xl">{product.name}</h1><p className="mt-5 max-w-lg text-base leading-7 text-muted">{product.tagline}</p><p className="mt-6 font-display text-xl font-bold">від {formatUAH(product.price)}</p><div className="mt-7 flex flex-wrap gap-3"><button tabIndex={isClone ? -1 : undefined} className="btn-primary" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })}>Переглянути каталог</button><button tabIndex={isClone ? -1 : undefined} className="btn-secondary" onClick={() => setSelected(product)}>Швидкий перегляд</button></div></div>
+                    <ProductVisual product={product} className="aspect-square rounded-3xl" />
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <button onClick={() => setHeroIndex((heroIndex - 1 + heroProducts.length) % heroProducts.length)} className="icon-button absolute left-5 top-1/2 hidden -translate-y-1/2 border border-line bg-white/90 lg:grid" aria-label="Попередній товар"><ChevronLeft className="size-5" /></button>
-          <button onClick={() => setHeroIndex((heroIndex + 1) % heroProducts.length)} className="icon-button absolute right-5 top-1/2 hidden -translate-y-1/2 border border-line bg-white/90 lg:grid" aria-label="Наступний товар"><ChevronRight className="size-5" /></button>
-          <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">{heroProducts.map((product, index) => <button key={product.id} onClick={() => setHeroIndex(index)} aria-label={`Слайд ${index + 1}`} className={`h-1 rounded-full transition-all ${index === heroIndex ? "w-8 bg-ink" : "w-5 bg-black/15"}`} />)}</div>
+          {heroProducts.length > 1 && <>
+            <button onClick={() => moveHero(-1)} className="icon-button absolute left-5 top-1/2 hidden -translate-y-1/2 border border-line bg-white/90 lg:grid" aria-label="Попередній товар"><ChevronLeft className="size-5" /></button>
+            <button onClick={() => moveHero(1)} className="icon-button absolute right-5 top-1/2 hidden -translate-y-1/2 border border-line bg-white/90 lg:grid" aria-label="Наступний товар"><ChevronRight className="size-5" /></button>
+            <div className="absolute bottom-7 left-1/2 flex -translate-x-1/2 gap-2">
+              {heroProducts.map((product, index) => (
+                <button
+                  key={product.id}
+                  onClick={() => selectHero(index)}
+                  aria-label={`Слайд ${index + 1}`}
+                  aria-current={index === heroIndex ? "true" : undefined}
+                  className={`relative h-1 overflow-hidden rounded-full bg-black/15 transition-all ${index === heroIndex ? "w-8" : "w-5"}`}
+                >
+                  {index === heroIndex && <span key={heroIndex} className="hero-progress absolute inset-0 bg-ink" />}
+                </button>
+              ))}
+            </div>
+          </>}
         </section>
 
         <section id="catalog" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 lg:py-20">
@@ -99,16 +205,11 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
         </section>
       </main>
 
-      <footer className="border-t border-line"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-mono">© 2026 Nami Gear</p><div className="flex gap-5"><a className="hover:text-ink" href="mailto:lanovui0902@gmail.com">Підтримка</a><a className="hover:text-ink" href="https://t.me/A0kIgahara" target="_blank" rel="noreferrer">Telegram</a></div></div></footer>
+      <footer className="border-t border-line"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-mono">© 2026 Nami Gear</p><div className="flex flex-wrap gap-5"><a className="hover:text-ink" href="mailto:lanovui0902@gmail.com">lanovui0902@gmail.com</a><a className="hover:text-ink" href="https://t.me/A0klgahara" target="_blank" rel="noreferrer">Telegram: @A0klgahara</a></div></div></footer>
       <SearchDialog open={searchOpen} products={products} onClose={() => setSearchOpen(false)} onSelect={setSelected} />
       <ProductModal product={selected} variants={selected ? artisanStock?.products[selected.id]?.variants : undefined} onClose={() => setSelected(null)} />
     </>
   );
-}
-
-function ProductCard({ product, onSelect }: { product: Product; onSelect: (product: Product) => void }) {
-  const badge = stockLabels[product.stock];
-  return <article className="group overflow-hidden rounded-3xl border border-black/[.04] bg-white shadow-card transition hover:-translate-y-1 hover:shadow-soft"><button onClick={() => onSelect(product)} className="relative block aspect-[4/3] w-full overflow-hidden text-left">{product.stock !== "in-stock" && <span className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1.5 font-mono text-[9px] font-semibold uppercase ${badge.classes}`}>{badge.text}</span>}<ProductVisual product={product} className="h-full w-full" /></button><div className="flex min-h-52 flex-col p-5"><p className="font-mono text-[9px] uppercase tracking-widest text-warm">{product.brand} · {materialLabels[product.material]}</p><button className="mt-2 text-left text-lg font-semibold hover:text-warm" onClick={() => onSelect(product)}>{product.name}</button><p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{product.tagline}</p><div className="mt-auto flex items-center justify-between pt-5"><span className="font-display text-base font-bold">від {formatUAH(product.price)}</span><button className="btn-primary min-h-10 px-4" onClick={() => onSelect(product)}>Обрати</button></div></div></article>;
 }
 
 function FilterPanel({ brands, materials, types, values, onBrand, onMaterial, onType, onReset }: { brands: string[]; materials: Material[]; types: GlideType[]; values: { brand: string; material: Material | "all"; type: GlideType | "all" }; onBrand: (value: string) => void; onMaterial: (value: Material | "all") => void; onType: (value: GlideType | "all") => void; onReset: () => void }) {
