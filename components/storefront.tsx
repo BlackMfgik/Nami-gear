@@ -205,7 +205,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
         </section>
       </main>
 
-      <footer className="border-t border-line"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-mono">© 2026 Nami Gear</p><div className="flex flex-wrap gap-5"><a className="hover:text-ink" href="mailto:lanovui0902@gmail.com">lanovui0902@gmail.com</a><a className="hover:text-ink" href="https://t.me/A0klgahara" target="_blank" rel="noreferrer">Telegram: @A0klgahara</a></div></div></footer>
+      <footer className="border-t border-line"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-mono">© 2026 Nami Gear · made by <a className="hover:text-ink" href="https://aokigahara.dev">Aokigahara</a></p><div className="flex flex-wrap gap-5"><a className="hover:text-ink" href="mailto:lanovui0902@gmail.com">lanovui0902@gmail.com</a><a className="hover:text-ink" href="https://t.me/A0klgahara" target="_blank" rel="noreferrer">Telegram: @A0klgahara</a></div></div></footer>
       <SearchDialog open={searchOpen} products={products} onClose={() => setSearchOpen(false)} onSelect={setSelected} />
       <ProductModal product={selected} variants={selected ? artisanStock?.products[selected.id]?.variants : undefined} onClose={() => setSelected(null)} />
     </>
