@@ -21,6 +21,11 @@ export function jarUrl() {
   return /^https:\/\/send\.monobank\.ua\/jar\/[A-Za-z0-9]+$/.test(url) ? url : null;
 }
 
+export function jarCard() {
+  const card = process.env.MONO_JAR_CARD?.replace(/\s/g, "") ?? "";
+  return /^\d{16}$/.test(card) ? card.replace(/(\d{4})(?=\d)/g, "$1 ") : null;
+}
+
 export function jarPaymentLink(payableKop: number, orderNumber: string) {
   const url = jarUrl();
   if (!url) return null;

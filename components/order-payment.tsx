@@ -14,6 +14,7 @@ type OrderStatus = {
   payableKop: number | null;
   paidKop: number;
   link: string | null;
+  card: string | null;
 };
 
 const formatKop = (kop: number) => `${(kop / 100).toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₴`;
@@ -104,6 +105,7 @@ function JarPayment({ order }: { order: OrderStatus }) {
       <div className="mt-4 grid gap-2 text-left">
         <CopyRow label="Сума" value={(remaining / 100).toFixed(2)} />
         <CopyRow label="Коментар до платежу" value={order.orderNumber} />
+        {order.card && <CopyRow label="Або переказ на картку банки" value={order.card} copyValue={order.card.replace(/\s/g, "")} />}
       </div>
 
       {qr && (
@@ -122,11 +124,11 @@ function JarPayment({ order }: { order: OrderStatus }) {
   );
 }
 
-function CopyRow({ label, value }: { label: string; value: string }) {
+function CopyRow({ label, value, copyValue = value }: { label: string; value: string; copyValue?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(copyValue);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

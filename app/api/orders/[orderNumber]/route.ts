@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrderByNumber } from "@/lib/database";
-import { jarPaymentLink } from "@/lib/monobank";
+import { jarCard, jarPaymentLink } from "@/lib/monobank";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ord
     totalUAH: order.total_uah,
     payableKop: order.payable_kop,
     paidKop: order.paid_kop,
-    link: order.payment_method === "jar" && order.payable_kop ? jarPaymentLink(order.payable_kop, order.order_number) : null
+    link: order.payment_method === "jar" && order.payable_kop ? jarPaymentLink(order.payable_kop, order.order_number) : null,
+    card: order.payment_method === "jar" ? jarCard() : null
   }, { headers: { "Cache-Control": "no-store" } });
 }
