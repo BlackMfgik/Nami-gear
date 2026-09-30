@@ -1,6 +1,6 @@
-import { neon } from "@neondatabase/serverless";
 import type { Product } from "./types";
 import { attachProductColorImages } from "./product-color-images";
+import { ensureSchema, getSql } from "./db";
 
 type ProductRow = {
   id: string;
@@ -24,10 +24,7 @@ type ProductRow = {
 };
 
 export async function getCatalogProducts(): Promise<Product[]> {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
-
-  const sql = neon(databaseUrl);
+  const sql = getSql();
   const rows = await sql`SELECT * FROM products ORDER BY created_at, id` as ProductRow[];
 
   return rows.map((row) => ({
@@ -52,6 +49,9 @@ export async function getCatalogProducts(): Promise<Product[]> {
   }));
 }
 
+export type PaymentMethod = "cod" | "jar";
+export type PaymentStatus = "not_required" | "pending" | "partial" | "paid" | "expired" | "cancelled";
+
 export type NewOrder = {
   id: string;
   orderNumber: string;
@@ -64,7 +64,7 @@ export type NewOrder = {
   warehouse: string;
   warehouseRef: string;
   comment: string | null;
-  paymentMethod: "cod";
+  paymentMethod: PaymentMethod;
   items: {
     productId: string;
     name: string;
@@ -80,46 +80,63 @@ export type NewOrder = {
   weightKg: number;
 };
 
-export async function createOrder(order: NewOrder) {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL is not configured");
-  const sql = neon(databaseUrl);
+export type OrderRow = {
+  id: string;
+  order_number: string;
+  status: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  city: string;
+  warehouse: string;
+  comment: string | null;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  items: NewOrder["items"];
+  total_uah: number;
+  payable_kop: number | null;
+  paid_kop: number;
+  paid_at: string | Date | null;
+  created_at: string | Date;
+};
 
-  await sql`
-    CREATE TABLE IF NOT EXISTS orders (
-      id text PRIMARY KEY,
-      order_number text UNIQUE NOT NULL,
-      status text NOT NULL DEFAULT 'new',
-      first_name text NOT NULL,
-      last_name text NOT NULL,
-      phone text NOT NULL,
-      email text,
-      city text NOT NULL,
-      city_ref text NOT NULL,
-      warehouse text NOT NULL,
-      warehouse_ref text NOT NULL,
-      comment text,
-      payment_method text NOT NULL,
-      items jsonb NOT NULL,
-      subtotal_uah integer NOT NULL,
-      shipping_uah integer NOT NULL,
-      total_uah integer NOT NULL,
-      weight_kg numeric(8, 2) NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )
-  `;
+// Unique kopecks let a jar payment be matched by amount when the payer omits the comment.
+async function uniquePayableKop(totalUAH: number) {
+  const base = totalUAH * 100;
+  const used = await getSql()`
+    SELECT payable_kop FROM orders
+    WHERE payment_status IN ('pending', 'partial', 'expired') AND payable_kop BETWEEN ${base} AND ${base + 99}
+  ` as { payable_kop: number }[];
+  const taken = new Set(used.map((row) => row.payable_kop - base));
+  const free = Array.from({ length: 99 }, (_, index) => index + 1).filter((kop) => !taken.has(kop));
+  const pool = free.length ? free : Array.from({ length: 99 }, (_, index) => index + 1);
+  return base + pool[Math.floor(Math.random() * pool.length)];
+}
+
+export async function createOrder(order: NewOrder) {
+  await ensureSchema();
+  const sql = getSql();
+  const payableKop = order.paymentMethod === "jar" ? await uniquePayableKop(order.totalUAH) : null;
+  const paymentStatus: PaymentStatus = order.paymentMethod === "jar" ? "pending" : "not_required";
 
   await sql`
     INSERT INTO orders (
       id, order_number, first_name, last_name, phone, email, city, city_ref,
       warehouse, warehouse_ref, comment, payment_method, items, subtotal_uah,
-      shipping_uah, total_uah, weight_kg
+      shipping_uah, total_uah, weight_kg, payment_status, payable_kop
     ) VALUES (
       ${order.id}, ${order.orderNumber}, ${order.firstName}, ${order.lastName},
       ${order.phone}, ${order.email}, ${order.city}, ${order.cityRef},
       ${order.warehouse}, ${order.warehouseRef}, ${order.comment}, ${order.paymentMethod},
       ${JSON.stringify(order.items)}::jsonb, ${order.subtotalUAH}, ${order.shippingUAH},
-      ${order.totalUAH}, ${order.weightKg}
+      ${order.totalUAH}, ${order.weightKg}, ${paymentStatus}, ${payableKop}
     )
   `;
+  return { payableKop, paymentStatus };
+}
+
+export async function getOrderByNumber(orderNumber: string) {
+  await ensureSchema();
+  const rows = await getSql()`SELECT * FROM orders WHERE order_number = ${orderNumber}` as OrderRow[];
+  return rows[0] ?? null;
 }

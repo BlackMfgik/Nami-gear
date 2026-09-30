@@ -29,6 +29,24 @@ npm run dev
 npm run db:init
 ```
 
+## Передоплата на банку
+
+Змінні описані в `.env.example`. `MONO_JAR_ID` і `TELEGRAM_CHAT_ID` можна дізнатися так:
+
+```bash
+npm run mono:setup
+npm run telegram:setup
+```
+
+Після деплою:
+
+```bash
+npm run mono:setup -- --webhook "https://DOMAIN/api/payments/mono/webhook?key=MONO_WEBHOOK_SECRET"
+npm run telegram:setup -- --webhook https://DOMAIN
+```
+
+`/api/cron/sync?key=CRON_SECRET` треба викликати щохвилини (наприклад, через cron-job.org), бо Vercel Hobby запускає cron лише раз на добу.
+
 ## Перевірки
 
 ```bash

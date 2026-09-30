@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { createOrder, getCatalogProducts } from "@/lib/database";
-import { getArtisanStock } from "@/lib/artisan";
+import { after, NextResponse } from "next/server";
+import { createOrder, getCatalogProducts, getOrderByNumber, type PaymentMethod } from "@/lib/database";
+import { getArtisanStock, ORDER_MAX_AGE_MS } from "@/lib/artisan";
+import { jarPaymentLink, jarUrl } from "@/lib/monobank";
+import { notifyNewOrder } from "@/lib/payments";
 import { novaPoshtaRequest } from "@/lib/nova-poshta";
 import { estimateShippingWeightKg, qualifiesForFreeShipping } from "@/lib/shipping";
 import { isValidEmail, normalizeUkrainianPhone } from "@/lib/validation";
@@ -24,6 +26,7 @@ type SubmittedOrder = {
   warehouse?: unknown;
   warehouseRef?: unknown;
   comment?: unknown;
+  paymentMethod?: unknown;
   items?: unknown;
 };
 
@@ -32,6 +35,8 @@ type DocumentPrice = { Cost: number | string };
 
 const text = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toUpperCase();
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   let body: SubmittedOrder;
@@ -52,6 +57,10 @@ export async function POST(request: Request) {
   const warehouseRef = text(body.warehouseRef, 36);
   const comment = text(body.comment, 1000);
   const refPattern = /^[a-f0-9-]{36}$/i;
+  const paymentMethod: PaymentMethod = body.paymentMethod === "jar" ? "jar" : "cod";
+  if (paymentMethod === "jar" && !jarUrl()) {
+    return NextResponse.json({ error: "Передоплата на банку тимчасово недоступна. Оберіть оплату при отриманні." }, { status: 400 });
+  }
 
   if (!firstName || !lastName || !phone || !isValidEmail(email)) {
     return NextResponse.json({ error: "Перевірте ім’я, номер телефону та email." }, { status: 400 });
@@ -68,8 +77,8 @@ export async function POST(request: Request) {
   try {
     const products = await getCatalogProducts();
     const catalog = new Map(products.map((product) => [product.id, product]));
-    const needsLiveStock = submittedItems.some((item) => catalog.get(text(item.productId, 120))?.syncSource === "artisan");
-    const artisanStock = needsLiveStock ? await getArtisanStock() : null;
+    const artisanIds = [...new Set(submittedItems.map((item) => text(item.productId, 120)).filter((id) => catalog.get(id)?.syncSource === "artisan"))];
+    const artisanStock = artisanIds.length ? await getArtisanStock({ ids: artisanIds, maxAgeMs: ORDER_MAX_AGE_MS, refresh: "blocking" }) : null;
     const orderItems = submittedItems.map((item) => {
       const productId = text(item.productId, 120);
       const product = catalog.get(productId);
@@ -80,7 +89,9 @@ export async function POST(request: Request) {
       if (!product || product.stock === "out-of-stock" || !base || !size || !color || quantity < 1 || quantity > 20) throw new Error("INVALID_ITEM");
       let price: number;
       if (product.syncSource === "artisan") {
-        const variants = artisanStock?.products[product.id]?.variants;
+        const stock = artisanStock?.products[product.id];
+        if (stock && !stock.inStock) throw new Error("INVALID_ITEM");
+        const variants = stock?.variants;
         const variant = variants?.find((value) => normalize(value.base) === normalize(base) && normalize(value.size) === normalize(size) && normalize(value.color) === normalize(color));
         if (variants?.length && (!variant?.inStock || typeof variant.retailUAH !== "number")) throw new Error("INVALID_VARIANT");
         price = Math.round(variant?.retailUAH ?? product.priceBySize?.[size] ?? product.price);
@@ -116,9 +127,9 @@ export async function POST(request: Request) {
     }
 
     const orderNumber = `NG-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
-    await createOrder({
+    const { payableKop } = await createOrder({
       id: randomUUID(), orderNumber, firstName, lastName, phone, email: email || null,
-      city, cityRef, warehouse, warehouseRef, comment: comment || null, paymentMethod: "cod",
+      city, cityRef, warehouse, warehouseRef, comment: comment || null, paymentMethod,
       items: orderItems.map((item) => ({
         productId: item.productId,
         name: item.name,
@@ -130,7 +141,15 @@ export async function POST(request: Request) {
       })),
       subtotalUAH, shippingUAH, totalUAH: subtotalUAH + shippingUAH, weightKg
     });
-    return NextResponse.json({ orderNumber });
+    after(async () => {
+      const order = await getOrderByNumber(orderNumber);
+      if (order) await notifyNewOrder(order);
+    });
+    return NextResponse.json({
+      orderNumber,
+      paymentMethod,
+      payment: payableKop ? { payableKop, link: jarPaymentLink(payableKop, orderNumber) } : null
+    });
   } catch (error) {
     if (error instanceof Error && (error.message === "INVALID_ITEM" || error.message === "INVALID_VARIANT")) {
       return NextResponse.json({ error: "Один із товарів або його варіант більше недоступний." }, { status: 409 });

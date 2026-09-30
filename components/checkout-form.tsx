@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { formatUAH } from "@/lib/catalog";
 import { useCart } from "@/store/cart";
@@ -12,8 +13,12 @@ import {
   qualifiesForFreeShipping,
 } from "@/lib/shipping";
 
-export default function CheckoutPage() {
+type PaymentChoice = "cod" | "jar";
+
+export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
+  const router = useRouter();
   const { items, clear } = useCart();
+  const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>(jarEnabled ? "jar" : "cod");
   const [complete, setComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [deliveryError, setDeliveryError] = useState("");
@@ -113,6 +118,7 @@ export default function CheckoutPage() {
           warehouse: formData.get("warehouse"),
           warehouseRef,
           comment: formData.get("comment"),
+          paymentMethod,
           items: items.map((item) => ({
             productId: item.productId,
             base: item.base,
@@ -124,10 +130,16 @@ export default function CheckoutPage() {
       });
       const result = (await response.json()) as {
         orderNumber?: string;
+        paymentMethod?: PaymentChoice;
         error?: string;
       };
       if (!response.ok || !result.orderNumber)
         throw new Error(result.error || "Не вдалося створити замовлення.");
+      if (result.paymentMethod === "jar") {
+        clear();
+        router.push(`/order/${result.orderNumber}`);
+        return;
+      }
       setOrderNumber(result.orderNumber);
       setComplete(true);
       clear();
@@ -248,22 +260,22 @@ export default function CheckoutPage() {
             </section>
             <section className="rounded-3xl bg-white p-5 shadow-card sm:p-7">
               <h2 className="font-display text-lg font-semibold">Оплата</h2>
-              <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border border-ink p-4">
-                <input
-                  type="radio"
-                  name="payment"
-                  defaultChecked
-                  className="accent-ink"
+              <div className="mt-4 space-y-3">
+                {jarEnabled && (
+                  <PaymentOption
+                    checked={paymentMethod === "jar"}
+                    onSelect={() => setPaymentMethod("jar")}
+                    title="Передоплата на банку Monobank"
+                    description="Оплата карткою будь-якого банку, Apple Pay або Google Pay. Без комісії за накладений платіж."
+                  />
+                )}
+                <PaymentOption
+                  checked={paymentMethod === "cod"}
+                  onSelect={() => setPaymentMethod("cod")}
+                  title="Оплата при отриманні"
+                  description="Накладений платіж після перевірки посилки. Нова пошта бере комісію ~20 грн + 2%."
                 />
-                <span>
-                  <strong className="block text-sm">
-                    Оплата при отриманні
-                  </strong>
-                  <span className="text-xs text-muted">
-                    Після перевірки посилки
-                  </span>
-                </span>
-              </label>
+              </div>
             </section>
             <button
               className="btn-primary w-full"
@@ -340,6 +352,36 @@ export default function CheckoutPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function PaymentOption({
+  checked,
+  onSelect,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${checked ? "border-ink" : "border-line hover:border-muted"}`}
+    >
+      <input
+        type="radio"
+        name="payment"
+        checked={checked}
+        onChange={onSelect}
+        className="mt-1 accent-ink"
+      />
+      <span>
+        <strong className="block text-sm">{title}</strong>
+        <span className="text-xs leading-5 text-muted">{description}</span>
+      </span>
+    </label>
   );
 }
 
