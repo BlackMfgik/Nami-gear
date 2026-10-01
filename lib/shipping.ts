@@ -12,7 +12,7 @@ export function amountUntilFreeShippingUAH(subtotal: number) {
 
 export function estimateShippingWeightKg(items: { material?: Material; quantity: number }[]) {
   const weight = items.reduce((total, item) => {
-    const unitWeight = item.material === "glass" ? 3.5 : item.material === "cloth" ? 0.9 : item.material === "dots" ? 0.15 : 0.5;
+    const unitWeight = item.material === "glass" ? 3.5 : item.material === "cloth" ? 0.9  : 0.5;
     return total + unitWeight * item.quantity;
   }, 0);
   return Math.max(0.5, Math.round(weight * 10) / 10);

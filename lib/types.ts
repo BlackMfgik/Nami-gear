@@ -1,6 +1,6 @@
-export type Category = "mousepad" | "skates";
-export type Material = "cloth" | "glass" | "dots";
-export type GlideType = "balanced" | "control" | "speed" | "quiet" | "durable";
+export type Category = "mousepad";
+export type Material = "cloth" | "glass";
+export type GlideType = "balanced" | "control" | "speed";
 export type StockState = "in-stock" | "preorder" | "out-of-stock";
 
 export type ProductColor = { name: string; hex: string; image?: string };

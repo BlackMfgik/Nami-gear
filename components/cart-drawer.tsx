@@ -65,7 +65,7 @@ export function CartDrawer() {
                     </div>
                   </article>
                 );
-              })}</div> : <div className="grid h-full place-items-center px-5 pb-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-full bg-sand"><ShoppingBag className="size-5 text-muted" /></span><h3 className="mt-4 font-display text-base font-semibold">Кошик поки порожній</h3><p className="mt-1 text-xs text-muted">Додайте килимок або глайди з каталогу.</p><button className="btn-secondary mt-5 min-h-10" onClick={close}>Перейти до товарів</button></div></div>}
+              })}</div> : <div className="grid h-full place-items-center px-5 pb-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-full bg-sand"><ShoppingBag className="size-5 text-muted" /></span><h3 className="mt-4 font-display text-base font-semibold">Кошик поки порожній</h3><p className="mt-1 text-xs text-muted">Додайте килимок з каталогу.</p><button className="btn-secondary mt-5 min-h-10" onClick={close}>Перейти до товарів</button></div></div>}
             </div>
             {items.length > 0 && <div className="shrink-0 border-t border-line bg-sand/70 p-4"><div className="flex items-center justify-between"><span className="text-xs text-muted">Сума замовлення</span><strong className="font-display text-lg font-bold">{formatUAH(subtotal)}</strong></div><p className={`mb-3 mt-1 text-[11px] ${freeShipping ? "font-semibold text-green-700" : "text-muted"}`}>{freeShipping ? "Безкоштовна доставка" : `До безкоштовної доставки ще ${formatUAH(untilFreeShipping)}`}</p><Link href="/checkout" onClick={close} className="btn-primary w-full">Оформити <ArrowRight className="size-4" /></Link></div>}
       </aside>

@@ -25,7 +25,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
   const liveVariants = variants?.filter((variant) => variant.base && variant.size && variant.color);
   const bases = liveVariants?.length ? unique(liveVariants.map((variant) => variant.base)) : product.bases;
   const unsortedSizes = liveVariants?.length ? unique(liveVariants.map((variant) => variant.size)) : product.sizes;
-  const sizes = product.category === "mousepad" ? sortMousepadSizes(unsortedSizes) : unsortedSizes;
+  const sizes = sortMousepadSizes(unsortedSizes);
   const colorNames = unique([...product.colors.map((item) => item.name), ...(liveVariants?.map((variant) => variant.color) ?? [])]);
   const colors = colorNames.map((name) => product.colors.find((item) => normalize(item.name) === normalize(name)) ?? fallbackColor(name));
   const preferredColor = product.colors[0]?.name;
@@ -79,10 +79,6 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
     setColor(candidate.color);
     if (kind === "color") setActiveImage(0);
   };
-  const changeSize = (value: string) => {
-    changeVariantOption("size", value);
-    if (product.category === "skates") setActiveImage(Math.max(0, product.sizes.indexOf(value)));
-  };
   const addToCart = () => {
     if (!selectionAvailable) return;
     add({ key: `${product.id}__${base}__${size}__${color}`, productId: product.id, name: product.name, brand: product.brand, material: product.material, image: selectedColorImage, base, size, color, price });
@@ -115,8 +111,8 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
           )}
           <p className="mt-4 font-mono text-[10px] font-semibold tracking-[.14em] text-warm">{product.series}</p>
           <p className="mt-1 text-sm leading-6 text-muted">{product.tagline}</p>
-          <OptionGroup label={product.category === "skates" ? "Матеріал" : "База (жорсткість)"} value={base} options={bases} current={base} available={(value) => optionAvailable("base", value)} onChange={(value) => changeVariantOption("base", value)} />
-          <OptionGroup label={product.category === "skates" ? "Комплект" : "Розмір"} value={size} options={sizes} current={size} available={(value) => optionAvailable("size", value)} onChange={changeSize} />
+          <OptionGroup label="База (жорсткість)" value={base} options={bases} current={base} available={(value) => optionAvailable("base", value)} onChange={(value) => changeVariantOption("base", value)} />
+          <OptionGroup label="Розмір" value={size} options={sizes} current={size} available={(value) => optionAvailable("size", value)} onChange={(value) => changeVariantOption("size", value)} />
           <div className="mt-5"><div className="mb-3 flex justify-between font-mono text-[10px] uppercase tracking-wider text-muted"><span>Колір</span><span className="text-ink">{color}</span></div><div className="flex flex-wrap gap-4">{colors.map((item) => { const enabled = optionAvailable("color", item.name); return <button key={item.name} onClick={() => changeVariantOption("color", item.name)} className={`group/color flex flex-col items-center gap-2 transition ${enabled ? "" : "opacity-45"}`} aria-label={`${item.name}${enabled ? "" : " — немає в наявності"}`} aria-disabled={!enabled} title={enabled ? item.name : `${item.name} — немає в наявності`}><span className={`grid size-9 place-items-center rounded-full border-2 ${normalize(color) === normalize(item.name) ? "border-ink" : "border-line"}`} style={{ background: item.hex }}>{normalize(color) === normalize(item.name) && <Check className="size-4 text-white mix-blend-difference" />}</span><span className="font-mono text-[9px] text-muted">{item.name}</span></button>; })}</div></div>
         </div>
         <div className="flex shrink-0 items-center gap-4 border-t border-line bg-sand p-5 sm:px-6"><div className="shrink-0"><strong className="block font-display text-xl font-bold">{formatUAH(price)}</strong><span className="font-mono text-[9px] text-muted">{product.syncSource === "artisan" && selectionAvailable ? ARTISAN_LEAD_TIME : product.origin}</span></div><button className="btn-primary flex-1" onClick={addToCart} disabled={!selectionAvailable}>{selectionAvailable ? "Додати в кошик" : "Немає в наявності"}</button></div>

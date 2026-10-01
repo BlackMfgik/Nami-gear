@@ -3,15 +3,12 @@ import type { GlideType, Material } from "./types";
 export const typeLabels: Record<GlideType, string> = {
   balanced: "Баланс",
   control: "Контроль",
-  speed: "Швидкість",
-  quiet: "Тихі",
-  durable: "Зносостійкі"
+  speed: "Швидкість"
 };
 
 export const materialLabels: Record<Material, string> = {
   cloth: "Тканинний килимок",
-  glass: "Скляний килимок",
-  dots: "Точки-глайди"
+  glass: "Скляний килимок"
 };
 
 export const ARTISAN_LEAD_TIME = "Під замовлення · 2–4 тижні";

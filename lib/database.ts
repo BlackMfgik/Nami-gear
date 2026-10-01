@@ -25,7 +25,7 @@ type ProductRow = {
 
 export async function getCatalogProducts(): Promise<Product[]> {
   const sql = getSql();
-  const rows = await sql`SELECT * FROM products ORDER BY created_at, id` as ProductRow[];
+  const rows = await sql`SELECT * FROM products WHERE category = 'mousepad' ORDER BY created_at, id` as ProductRow[];
 
   return rows.map((row) => ({
     id: row.id,

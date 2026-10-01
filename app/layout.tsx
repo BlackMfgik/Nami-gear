@@ -18,7 +18,7 @@ const display = Manrope({
 
 export const metadata: Metadata = {
   title: "Nami Gear",
-  description: "Підібрані ігрові килимки, скляні поверхні та глайди для миші.",
+  description: "Ігрові килимки для миші Artisan з Японії.",
 };
 
 export default function RootLayout({

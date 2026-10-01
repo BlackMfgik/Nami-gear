@@ -34,7 +34,7 @@ export function ProductCard({ product, onSelect }: { product: Product; onSelect:
         <p className="font-mono text-[9px] uppercase tracking-widest text-warm">{product.brand} · {materialLabels[product.material]}</p>
         <button className="mt-2 text-left text-lg font-semibold hover:text-warm" onClick={() => onSelect(selectedProduct())}>{product.name}</button>
         <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{product.tagline}</p>
-        {product.category === "mousepad" && product.colors.length > 0 && (
+        {product.colors.length > 0 && (
           <div className="mt-4 flex items-center gap-2" aria-label={`Колір: ${color}`}>
             {product.colors.map((item) => (
               <button

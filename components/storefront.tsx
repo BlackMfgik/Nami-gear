@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, Search, ShoppingBag, SlidersHorizontal } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ArtisanStockResponse, Category, GlideType, Material, Product } from "@/lib/types";
+import type { ArtisanStockResponse, GlideType, Material, Product } from "@/lib/types";
 import { formatUAH, materialLabels, typeLabels } from "@/lib/catalog";
 import { useCart } from "@/store/cart";
 import { CartDrawer } from "./cart-drawer";
@@ -14,7 +14,6 @@ import { ProductVisual } from "./product-visual";
 import { SearchDialog } from "./search-dialog";
 
 export function Storefront({ initialProducts }: { initialProducts: Product[] }) {
-  const [category, setCategory] = useState<Category>("mousepad");
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroSlide, setHeroSlide] = useState(1);
   const [heroDragOffset, setHeroDragOffset] = useState(0);
@@ -59,13 +58,12 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
       stock: variants.some((variant) => variant.inStock) ? "in-stock" as const : "out-of-stock" as const
     };
   }), [artisanStock, catalogProducts]);
-  const categoryProducts = useMemo(() => products.filter((product) => product.category === category), [category, products]);
-  const brands = useMemo(() => [...new Set(categoryProducts.map((product) => product.brand))], [categoryProducts]);
-  const materials = useMemo(() => [...new Set(categoryProducts.map((product) => product.material))], [categoryProducts]);
-  const types = useMemo(() => [...new Set(categoryProducts.map((product) => product.type))], [categoryProducts]);
-  const filtered = useMemo(() => categoryProducts.filter((product) => (brand === "all" || product.brand === brand) && (material === "all" || product.material === material) && (type === "all" || product.type === type)), [brand, categoryProducts, material, type]);
+  const brands = useMemo(() => [...new Set(products.map((product) => product.brand))], [products]);
+  const materials = useMemo(() => [...new Set(products.map((product) => product.material))], [products]);
+  const types = useMemo(() => [...new Set(products.map((product) => product.type))], [products]);
+  const filtered = useMemo(() => products.filter((product) => (brand === "all" || product.brand === brand) && (material === "all" || product.material === material) && (type === "all" || product.type === type)), [brand, products, material, type]);
   const activeFilterCount = Number(brand !== "all") + Number(material !== "all") + Number(type !== "all");
-  const heroProducts = useMemo(() => products.filter((product) => product.category === "mousepad").slice(0, 4), [products]);
+  const heroProducts = useMemo(() => products.slice(0, 4), [products]);
   const heroSlides = useMemo(() => heroProducts.length ? [heroProducts.at(-1)!, ...heroProducts, heroProducts[0]] : [], [heroProducts]);
 
   const moveHero = useCallback((direction: -1 | 1) => {
@@ -86,11 +84,6 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
     setHeroSlide(index + 1);
   }, [heroIndex]);
 
-  const selectCategory = useCallback((next: Category, scroll = true) => {
-    setCategory(next); setBrand("all"); setMaterial("all"); setType("all"); setFiltersOpen(false);
-    if (scroll) window.setTimeout(() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }), 0);
-  }, []);
-
   useEffect(() => {
     if (heroProducts.length < 2) return;
     const timer = window.setInterval(() => moveHero(1), 6000);
@@ -108,8 +101,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
           <Image src="/nami-logo.png" alt="Nami" width={1304} height={384} priority className="h-8 w-auto" />
         </button>
         <nav className="absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1" aria-label="Категорії">
-          <button onClick={() => selectCategory("mousepad")} className={`rounded-full px-3 py-2 text-xs font-semibold transition sm:px-5 sm:text-sm ${category === "mousepad" ? "bg-ink text-white" : "text-muted hover:bg-sand"}`}>Килимки</button>
-          <button onClick={() => selectCategory("skates")} className={`rounded-full px-3 py-2 text-xs font-semibold transition sm:px-5 sm:text-sm ${category === "skates" ? "bg-ink text-white" : "text-muted hover:bg-sand"}`}>Глайди</button>
+          <button onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })} className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-white transition sm:px-5 sm:text-sm">Килимки</button>
         </nav>
         <div className="relative z-10 ml-auto flex items-center"><button className="icon-button hidden sm:grid" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-5" /></button><button data-cart-toggle className="icon-button focus:ring-0 focus:ring-offset-0 active:ring-2 active:ring-ink active:ring-offset-2" onClick={cart.toggle} aria-label="Відкрити кошик" aria-expanded={cart.isOpen}><ShoppingBag className="size-5" />{itemCount > 0 && <span className="absolute right-0 top-0 grid size-5 place-items-center rounded-full bg-ink font-mono text-[9px] text-white">{itemCount}</span>}</button></div>
         <CartDrawer />
@@ -199,7 +191,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
         </section>
 
         <section id="catalog" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 lg:py-20">
-          <div className="flex items-end justify-between gap-4"><div><h2 className="font-display text-3xl font-bold tracking-tight">{category === "mousepad" ? "Килимки" : "Глайди"}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{category === "mousepad" ? "Тканинні та скляні поверхні для різних стилів наведення." : "Точки Meow Gaming Gear для тканинних і скляних килимків."}</p></div><div className="flex gap-2 sm:hidden"><button className="icon-button border border-line" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-4" /></button></div></div>
+          <div className="flex items-end justify-between gap-4"><div><h2 className="font-display text-3xl font-bold tracking-tight">Килимки</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Тканинні поверхні Artisan для різних стилів наведення.</p></div><div className="flex gap-2 sm:hidden"><button className="icon-button border border-line" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-4" /></button></div></div>
           <div className="relative mt-6 flex justify-end" ref={filterRef}><button onClick={() => setFiltersOpen((value) => !value)} className="btn-secondary min-h-10 px-4 normal-case" aria-expanded={filtersOpen}><Filter className="size-4" />Фільтри{activeFilterCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-ink font-mono text-[9px] text-white">{activeFilterCount}</span>}<ChevronDown className={`size-4 transition ${filtersOpen ? "rotate-180" : ""}`} /></button>{filtersOpen && <FilterPanel brands={brands} materials={materials} types={types} values={{ brand, material, type }} onBrand={setBrand} onMaterial={setMaterial} onType={setType} onReset={() => { setBrand("all"); setMaterial("all"); setType("all"); }} />}</div>
           {filtered.length ? <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map((product) => <ProductCard key={product.id} product={product} onSelect={setSelected} />)}</div> : <div className="mt-6 rounded-3xl border border-dashed border-line bg-sand p-14 text-center"><SlidersHorizontal className="mx-auto size-6 text-muted" /><h3 className="mt-4 font-display text-lg font-semibold">Товарів не знайдено</h3><button className="btn-secondary mt-5" onClick={() => { setBrand("all"); setMaterial("all"); setType("all"); }}>Скинути фільтри</button></div>}
         </section>
