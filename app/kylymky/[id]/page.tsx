@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Faq } from "@/components/faq";
 import { JsonLd } from "@/components/json-ld";
 import { ProductPurchase } from "@/components/product-purchase";
 import { SiteFooter } from "@/components/site-footer";
@@ -8,6 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { ARTISAN_LEAD_TIME, formatUAH, materialLabels, sortMousepadSizes, typeLabels } from "@/lib/catalog";
 import { getCatalogProducts } from "@/lib/database";
 import { getLiveCatalog } from "@/lib/live-catalog";
+import { faqJsonLd, productAliases, shortName, type FaqItem } from "@/lib/seo";
 import { productPath, SITE_NAME, SITE_URL } from "@/lib/site";
 import type { GlideType, Product } from "@/lib/types";
 
@@ -20,6 +22,16 @@ const typeDescriptions: Record<GlideType, string> = {
 };
 
 const absoluteUrl = (url: string) => url.startsWith("http") ? url : `${SITE_URL}${url}`;
+
+function productFaq(product: Product, low: number): FaqItem[] {
+  const name = `Artisan ${shortName(product)}`;
+  return [
+    { question: `Скільки коштує ${name}?`, answer: `${name} коштує від ${formatUAH(low)}: ціна залежить від розміру та бази. Доставка з Японії вже включена в ціну.` },
+    { question: `Де купити ${name} в Україні?`, answer: `В Nami Gear: оформіть замовлення на цій сторінці, оплатіть карткою, і ми привеземо оригінальний ${name} з Японії та відправимо Новою поштою.` },
+    { question: `Яку базу ${name} обрати?`, answer: "XSOFT найм’якша й дає більше контролю, MID найжорсткіша й найшвидша, SOFT посередині. Якщо сумніваєтеся, беріть SOFT." },
+    { question: "Скільки чекати на доставку?", answer: "Зазвичай 2–4 тижні з моменту оплати, після відправки надсилаємо номер ТТН Нової пошти." }
+  ];
+}
 
 async function findProduct(id: string) {
   const catalog = await getLiveCatalog();
@@ -41,8 +53,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const found = await findProduct(id);
   if (!found) return {};
   const { product } = found;
-  const title = `Килимок ${product.brand} ${product.name}: купити в Україні`;
-  const description = `${product.brand} ${product.name}. ${product.tagline} Розміри ${sortMousepadSizes(product.sizes).join(", ")}. Від ${formatUAH(product.price)}, оригінал з Японії.`;
+  const title = `${product.brand} ${shortName(product)}: купити килимок для миші в Україні`;
+  const description = `Купити килимок (коврик) ${product.brand} ${shortName(product)} в Україні. ${product.tagline} Розміри ${sortMousepadSizes(product.sizes).join(", ")}, ціна від ${formatUAH(product.price)}.`;
   return {
     title,
     description,
@@ -62,6 +74,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const url = `${SITE_URL}${productPath(product.id)}`;
   const images = [...new Set([product.image, ...product.colors.map((color) => color.image).filter((image): image is string => Boolean(image)), ...product.gallery])].map(absoluteUrl);
   const others = liveProducts.filter((item) => item.id !== product.id);
+  const faq = productFaq(product, low);
 
   return (
     <>
@@ -85,6 +98,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             seller: { "@type": "Organization", name: SITE_NAME }
           }
         },
+        faqJsonLd(faq),
         {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
@@ -105,6 +119,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             <p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-warm">{product.brand} · {product.series}</p>
             <h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">Килимок {product.brand} {product.name}</h1>
             <p className="mt-4 text-base leading-7 text-muted">{product.tagline}</p>
+            <p className="mt-2 text-xs text-muted">Інші назви: {productAliases(product).join(", ")}</p>
             <p className="mt-5 font-display text-2xl font-bold">{low === high ? formatUAH(low) : `від ${formatUAH(low)}`}</p>
             <p className={`mt-2 inline-block rounded-full px-3 py-1.5 font-mono text-[10px] font-semibold uppercase ${available ? "bg-amber-100 text-amber-900" : "bg-red-100 text-red-800"}`}>
               {available ? (product.syncSource === "artisan" ? ARTISAN_LEAD_TIME : "В наявності") : "Немає в наявності"}
@@ -143,6 +158,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <p>Доставка Новою поштою по всій Україні, від 1 000 ₴ безкоштовно. Після відправлення надсилаємо номер ТТН.</p>
             </section>
           </div>
+        </div>
+
+        <div className="mt-16 max-w-3xl">
+          <Faq items={faq} />
         </div>
 
         {others.length > 0 && (

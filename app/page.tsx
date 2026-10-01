@@ -7,6 +7,7 @@ import { productPath, SITE_DESCRIPTION, SITE_NAME, SITE_URL, TELEGRAM_URL } from
 export const revalidate = 60;
 
 export const metadata: Metadata = {
+  title: { absolute: "Купити килимок Artisan в Україні · Nami Gear" },
   alternates: { canonical: "/" },
   openGraph: { url: "/", images: [{ url: "https://res.cloudinary.com/dk9yjgta3/image/upload/f_auto,q_auto/nami-gear/products/artisan-hien", alt: "Килимок Artisan Hien" }] }
 };
