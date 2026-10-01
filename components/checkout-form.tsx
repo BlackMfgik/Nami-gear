@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -13,14 +13,9 @@ import {
   qualifiesForFreeShipping,
 } from "@/lib/shipping";
 
-type PaymentChoice = "cod" | "jar";
-
 export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
   const router = useRouter();
   const { items, clear } = useCart();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>(jarEnabled ? "jar" : "cod");
-  const [complete, setComplete] = useState(false);
-  const [orderNumber, setOrderNumber] = useState("");
   const [deliveryError, setDeliveryError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [shippingQuote, setShippingQuote] = useState<number | null>(null);
@@ -118,7 +113,6 @@ export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
           warehouse: formData.get("warehouse"),
           warehouseRef,
           comment: formData.get("comment"),
-          paymentMethod,
           items: items.map((item) => ({
             productId: item.productId,
             base: item.base,
@@ -130,20 +124,12 @@ export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
       });
       const result = (await response.json()) as {
         orderNumber?: string;
-        paymentMethod?: PaymentChoice;
         error?: string;
       };
       if (!response.ok || !result.orderNumber)
         throw new Error(result.error || "Не вдалося створити замовлення.");
-      if (result.paymentMethod === "jar") {
-        clear();
-        router.push(`/order/${result.orderNumber}`);
-        return;
-      }
-      setOrderNumber(result.orderNumber);
-      setComplete(true);
       clear();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      router.push(`/order/${result.orderNumber}`);
     } catch (error) {
       setDeliveryError(
         error instanceof Error
@@ -154,30 +140,6 @@ export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
       setSubmitting(false);
     }
   };
-
-  if (complete)
-    return (
-      <main className="grid min-h-screen place-items-center bg-sand p-5">
-        <div className="max-w-lg rounded-3xl bg-white p-10 text-center shadow-soft">
-          <span className="mx-auto grid size-16 place-items-center rounded-full bg-green-100 text-green-800">
-            <Check className="size-7" />
-          </span>
-          <h1 className="mt-5 font-display text-3xl font-bold">
-            Замовлення прийнято
-          </h1>
-          <p className="mt-3 font-mono text-xs font-semibold uppercase tracking-wider text-warm">
-            № {orderNumber}
-          </p>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Дякуємо за замовлення! Ми зв’яжемося з вами за вказаним номером
-            телефону для підтвердження.
-          </p>
-          <Link className="btn-primary mt-7" href="/">
-            Повернутися до магазину
-          </Link>
-        </div>
-      </main>
-    );
 
   return (
     <main className="min-h-screen bg-sand py-5 sm:py-10">
@@ -260,32 +222,31 @@ export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
             </section>
             <section className="rounded-3xl bg-white p-5 shadow-card sm:p-7">
               <h2 className="font-display text-lg font-semibold">Оплата</h2>
-              <div className="mt-4 space-y-3">
-                {jarEnabled && (
-                  <PaymentOption
-                    checked={paymentMethod === "jar"}
-                    onSelect={() => setPaymentMethod("jar")}
-                    title="Передоплата на банку Monobank"
-                    description="Оплата карткою будь-якого банку, Apple Pay або Google Pay. Без комісії за накладений платіж."
-                  />
-                )}
-                <PaymentOption
-                  checked={paymentMethod === "cod"}
-                  onSelect={() => setPaymentMethod("cod")}
-                  title="Оплата при отриманні"
-                  description="Накладений платіж після перевірки посилки. Нова пошта бере комісію ~20 грн + 2%."
-                />
-              </div>
+              {jarEnabled ? (
+                <div className="mt-4 rounded-2xl border border-ink p-4">
+                  <strong className="block text-sm">
+                    Повна передоплата на банку Monobank
+                  </strong>
+                  <span className="text-xs leading-5 text-muted">
+                    Карткою будь-якого банку, Apple Pay або Google Pay. Після
+                    оплати замовляємо килимок і надсилаємо ТТН.
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-red-700">
+                  Оплата тимчасово недоступна. Напишіть нам у Telegram.
+                </p>
+              )}
             </section>
             <button
               className="btn-primary w-full"
-              disabled={!items.length || submitting || shippingLoading}
+              disabled={!jarEnabled || !items.length || submitting || shippingLoading}
             >
               {shippingLoading
                 ? "Розраховуємо доставку…"
                 : submitting
                   ? "Створюємо замовлення…"
-                  : "Підтвердити замовлення"}
+                  : "Перейти до оплати"}
             </button>
           </form>
           <aside className="h-fit rounded-3xl bg-white p-5 shadow-card lg:sticky lg:top-6 sm:p-6">
@@ -352,36 +313,6 @@ export function CheckoutForm({ jarEnabled }: { jarEnabled: boolean }) {
         </div>
       </div>
     </main>
-  );
-}
-
-function PaymentOption({
-  checked,
-  onSelect,
-  title,
-  description,
-}: {
-  checked: boolean;
-  onSelect: () => void;
-  title: string;
-  description: string;
-}) {
-  return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${checked ? "border-ink" : "border-line hover:border-muted"}`}
-    >
-      <input
-        type="radio"
-        name="payment"
-        checked={checked}
-        onChange={onSelect}
-        className="mt-1 accent-ink"
-      />
-      <span>
-        <strong className="block text-sm">{title}</strong>
-        <span className="text-xs leading-5 text-muted">{description}</span>
-      </span>
-    </label>
   );
 }
 

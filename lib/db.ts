@@ -44,6 +44,10 @@ export const schemaStatements = [
     raw jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS job_runs (
+    name text PRIMARY KEY,
+    ran_at timestamptz NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS artisan_stock (
     product_id text PRIMARY KEY,
     source_url text NOT NULL,

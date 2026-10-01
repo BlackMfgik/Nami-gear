@@ -141,9 +141,21 @@ export async function expireUnpaidOrders() {
   return rows.length;
 }
 
+// Monobank allows one statement request per 60 s, shared between cron and open payment pages.
+async function claimJarPoll() {
+  await ensureSchema();
+  const rows = await getSql()`
+    INSERT INTO job_runs (name, ran_at) VALUES ('jar-poll', now())
+    ON CONFLICT (name) DO UPDATE SET ran_at = now() WHERE job_runs.ran_at < now() - interval '61 seconds'
+    RETURNING name
+  `;
+  return rows.length > 0;
+}
+
 export async function pollJarPayments() {
   const config = monoConfig();
   if (!config) return { enabled: false, processed: 0 };
+  if (!await claimJarPoll()) return { enabled: true, processed: 0, skipped: true };
   const items = await fetchJarStatement();
   let processed = 0;
   for (const item of items) {

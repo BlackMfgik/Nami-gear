@@ -3,17 +3,18 @@
 import { Check } from "lucide-react";
 import { useState } from "react";
 import type { Product } from "@/lib/types";
-import { formatUAH, materialLabels } from "@/lib/catalog";
+import { ARTISAN_LEAD_TIME, formatUAH, materialLabels } from "@/lib/catalog";
 import { ProductVisual } from "./product-visual";
 
 const stockLabels = {
-  "in-stock": { text: "В наявності", classes: "bg-green-100 text-green-800" },
   preorder: { text: "Уточнюємо", classes: "bg-orange-100 text-orange-800" },
   "out-of-stock": { text: "Немає", classes: "bg-red-100 text-red-800" }
 };
 
 export function ProductCard({ product, onSelect }: { product: Product; onSelect: (product: Product) => void }) {
-  const badge = stockLabels[product.stock];
+  const badge = product.stock === "in-stock" && product.syncSource === "artisan"
+    ? { text: ARTISAN_LEAD_TIME, classes: "bg-amber-100 text-amber-900" }
+    : product.stock === "in-stock" ? null : stockLabels[product.stock];
   const [color, setColor] = useState(product.colors[0]?.name ?? "");
   const selectedProduct = () => ({
     ...product,
@@ -26,7 +27,7 @@ export function ProductCard({ product, onSelect }: { product: Product; onSelect:
   return (
     <article className="group overflow-hidden rounded-3xl border border-black/[.04] bg-white shadow-card transition hover:-translate-y-1 hover:shadow-soft">
       <button onClick={() => onSelect(selectedProduct())} className="relative block aspect-[4/3] w-full overflow-hidden text-left">
-        {product.stock !== "in-stock" && <span className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1.5 font-mono text-[9px] font-semibold uppercase ${badge.classes}`}>{badge.text}</span>}
+        {badge && <span className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1.5 font-mono text-[9px] font-semibold uppercase ${badge.classes}`}>{badge.text}</span>}
         <ProductVisual product={product} color={color} className="h-full w-full" />
       </button>
       <div className="flex min-h-60 flex-col p-5">

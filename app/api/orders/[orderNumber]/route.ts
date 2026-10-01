@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getOrderByNumber } from "@/lib/database";
 import { jarCard, jarPaymentLink } from "@/lib/monobank";
+import { pollJarPayments } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ord
   }
   const order = await getOrderByNumber(orderNumber);
   if (!order) return NextResponse.json({ error: "Замовлення не знайдено." }, { status: 404 });
+  if (order.payment_method === "jar" && ["pending", "partial", "expired"].includes(order.payment_status)) {
+    after(() => pollJarPayments().then(() => undefined, (error) => console.error("Jar poll failed", error)));
+  }
   return NextResponse.json({
     orderNumber: order.order_number,
     paymentMethod: order.payment_method,

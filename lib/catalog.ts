@@ -14,6 +14,8 @@ export const materialLabels: Record<Material, string> = {
   dots: "Точки-глайди"
 };
 
+export const ARTISAN_LEAD_TIME = "Під замовлення · 2–4 тижні";
+
 export const formatUAH = (price: number) => `₴${Math.round(price).toLocaleString("uk-UA")}`;
 
 const mousepadSizeOrder = new Map([

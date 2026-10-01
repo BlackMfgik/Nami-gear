@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { after, NextResponse } from "next/server";
-import { createOrder, getCatalogProducts, getOrderByNumber, type PaymentMethod } from "@/lib/database";
+import { createOrder, getCatalogProducts, getOrderByNumber } from "@/lib/database";
 import { getArtisanStock, ORDER_MAX_AGE_MS } from "@/lib/artisan";
 import { jarPaymentLink, jarUrl } from "@/lib/monobank";
 import { notifyNewOrder } from "@/lib/payments";
@@ -26,7 +26,6 @@ type SubmittedOrder = {
   warehouse?: unknown;
   warehouseRef?: unknown;
   comment?: unknown;
-  paymentMethod?: unknown;
   items?: unknown;
 };
 
@@ -57,9 +56,8 @@ export async function POST(request: Request) {
   const warehouseRef = text(body.warehouseRef, 36);
   const comment = text(body.comment, 1000);
   const refPattern = /^[a-f0-9-]{36}$/i;
-  const paymentMethod: PaymentMethod = body.paymentMethod === "jar" ? "jar" : "cod";
-  if (paymentMethod === "jar" && !jarUrl()) {
-    return NextResponse.json({ error: "Передоплата на банку тимчасово недоступна. Оберіть оплату при отриманні." }, { status: 400 });
+  if (!jarUrl()) {
+    return NextResponse.json({ error: "Оплата тимчасово недоступна. Напишіть нам у Telegram." }, { status: 503 });
   }
 
   if (!firstName || !lastName || !phone || !isValidEmail(email)) {
@@ -129,7 +127,7 @@ export async function POST(request: Request) {
     const orderNumber = `NG-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
     const { payableKop } = await createOrder({
       id: randomUUID(), orderNumber, firstName, lastName, phone, email: email || null,
-      city, cityRef, warehouse, warehouseRef, comment: comment || null, paymentMethod,
+      city, cityRef, warehouse, warehouseRef, comment: comment || null, paymentMethod: "jar",
       items: orderItems.map((item) => ({
         productId: item.productId,
         name: item.name,
@@ -147,7 +145,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({
       orderNumber,
-      paymentMethod,
       payment: payableKop ? { payableKop, link: jarPaymentLink(payableKop, orderNumber) } : null
     });
   } catch (error) {

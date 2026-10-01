@@ -3,7 +3,7 @@
 import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ArtisanVariant, Product } from "@/lib/types";
-import { formatUAH, sortMousepadSizes } from "@/lib/catalog";
+import { ARTISAN_LEAD_TIME, formatUAH, sortMousepadSizes } from "@/lib/catalog";
 import { getProductColorImage } from "@/lib/product-color-images";
 import { useCart } from "@/store/cart";
 
@@ -119,7 +119,7 @@ function ProductModalContent({ product, variants, onClose }: { product: Product;
           <OptionGroup label={product.category === "skates" ? "Комплект" : "Розмір"} value={size} options={sizes} current={size} available={(value) => optionAvailable("size", value)} onChange={changeSize} />
           <div className="mt-5"><div className="mb-3 flex justify-between font-mono text-[10px] uppercase tracking-wider text-muted"><span>Колір</span><span className="text-ink">{color}</span></div><div className="flex flex-wrap gap-4">{colors.map((item) => { const enabled = optionAvailable("color", item.name); return <button key={item.name} onClick={() => changeVariantOption("color", item.name)} className={`group/color flex flex-col items-center gap-2 transition ${enabled ? "" : "opacity-45"}`} aria-label={`${item.name}${enabled ? "" : " — немає в наявності"}`} aria-disabled={!enabled} title={enabled ? item.name : `${item.name} — немає в наявності`}><span className={`grid size-9 place-items-center rounded-full border-2 ${normalize(color) === normalize(item.name) ? "border-ink" : "border-line"}`} style={{ background: item.hex }}>{normalize(color) === normalize(item.name) && <Check className="size-4 text-white mix-blend-difference" />}</span><span className="font-mono text-[9px] text-muted">{item.name}</span></button>; })}</div></div>
         </div>
-        <div className="flex shrink-0 items-center gap-4 border-t border-line bg-sand p-5 sm:px-6"><div className="shrink-0"><strong className="block font-display text-xl font-bold">{formatUAH(price)}</strong><span className="font-mono text-[9px] text-muted">{product.origin}</span></div><button className="btn-primary flex-1" onClick={addToCart} disabled={!selectionAvailable}>{selectionAvailable ? "Додати в кошик" : "Немає в наявності"}</button></div>
+        <div className="flex shrink-0 items-center gap-4 border-t border-line bg-sand p-5 sm:px-6"><div className="shrink-0"><strong className="block font-display text-xl font-bold">{formatUAH(price)}</strong><span className="font-mono text-[9px] text-muted">{product.syncSource === "artisan" && selectionAvailable ? ARTISAN_LEAD_TIME : product.origin}</span></div><button className="btn-primary flex-1" onClick={addToCart} disabled={!selectionAvailable}>{selectionAvailable ? "Додати в кошик" : "Немає в наявності"}</button></div>
       </div>
     </div>
   );
