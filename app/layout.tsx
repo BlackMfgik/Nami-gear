@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -17,8 +18,12 @@ const display = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Nami Gear",
-  description: "Ігрові килимки для миші Artisan з Японії.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "Nami Gear: ігрові килимки Artisan з Японії", template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { siteName: SITE_NAME, locale: "uk_UA", type: "website" },
+  twitter: { card: "summary_large_image" }
 };
 
 export default function RootLayout({

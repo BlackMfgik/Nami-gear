@@ -1,4 +1,4 @@
-import type { GlideType, Material } from "./types";
+import type { ArtisanStockResponse, GlideType, Material, Product } from "./types";
 
 export const typeLabels: Record<GlideType, string> = {
   balanced: "Баланс",
@@ -14,6 +14,19 @@ export const materialLabels: Record<Material, string> = {
 export const ARTISAN_LEAD_TIME = "Під замовлення · 2–4 тижні";
 
 export const formatUAH = (price: number) => `₴${Math.round(price).toLocaleString("uk-UA")}`;
+
+export function applyArtisanStock(products: Product[], stock?: ArtisanStockResponse) {
+  return products.map((product) => {
+    const entry = stock?.products[product.id];
+    if (!product.syncSource || !entry?.variants) return product;
+    const prices = entry.variants.map((variant) => variant.retailUAH).filter((price): price is number => typeof price === "number");
+    return {
+      ...product,
+      price: prices.length ? Math.min(...prices) : product.price,
+      stock: entry.inStock ? "in-stock" as const : "out-of-stock" as const
+    };
+  });
+}
 
 const mousepadSizeOrder = new Map([
   ["XS", 0],

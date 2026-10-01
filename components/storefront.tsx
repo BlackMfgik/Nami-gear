@@ -1,19 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Search, ShoppingBag, SlidersHorizontal } from "lucide-react";
-import Image from "next/image";
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Search, SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ArtisanStockResponse, GlideType, Material, Product } from "@/lib/types";
-import { formatUAH, materialLabels, typeLabels } from "@/lib/catalog";
-import { useCart } from "@/store/cart";
-import { CartDrawer } from "./cart-drawer";
+import { applyArtisanStock, formatUAH, materialLabels, typeLabels } from "@/lib/catalog";
 import { ProductModal } from "./product-modal";
 import { ProductCard } from "./product-card";
 import { ProductVisual } from "./product-visual";
 import { SearchDialog } from "./search-dialog";
+import { SiteFooter } from "./site-footer";
+import { SiteHeader } from "./site-header";
+import { useArtisanStock } from "./use-artisan-stock";
 
-export function Storefront({ initialProducts }: { initialProducts: Product[] }) {
+export function Storefront({ initialProducts, initialStock }: { initialProducts: Product[]; initialStock?: ArtisanStockResponse }) {
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroSlide, setHeroSlide] = useState(1);
   const [heroDragOffset, setHeroDragOffset] = useState(0);
@@ -28,8 +28,6 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
   const heroPointerStartRef = useRef<number | null>(null);
   const heroAnimatingRef = useRef(false);
   const heroSuppressClickRef = useRef(false);
-  const cart = useCart();
-  const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const { data: catalogProducts = initialProducts } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => {
@@ -41,23 +39,9 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
     refetchInterval: 60_000,
     retry: 1
   });
-  const { data: artisanStock } = useQuery<ArtisanStockResponse>({
-    queryKey: ["artisan-stock"],
-    queryFn: async () => { const response = await fetch("/api/artisan-stock"); if (!response.ok) throw new Error("Stock request failed"); return response.json(); },
-    refetchInterval: 60_000,
-    retry: 1
-  });
+  const { data: artisanStock } = useArtisanStock(initialStock);
 
-  const products = useMemo(() => catalogProducts.map((product) => {
-    const variants = artisanStock?.products[product.id]?.variants;
-    if (!product.syncSource || !variants) return product;
-    const livePrices = variants.map((variant) => variant.retailUAH).filter((price): price is number => typeof price === "number");
-    return {
-      ...product,
-      price: livePrices.length ? Math.min(...livePrices) : product.price,
-      stock: variants.some((variant) => variant.inStock) ? "in-stock" as const : "out-of-stock" as const
-    };
-  }), [artisanStock, catalogProducts]);
+  const products = useMemo(() => applyArtisanStock(catalogProducts, artisanStock), [artisanStock, catalogProducts]);
   const brands = useMemo(() => [...new Set(products.map((product) => product.brand))], [products]);
   const materials = useMemo(() => [...new Set(products.map((product) => product.material))], [products]);
   const types = useMemo(() => [...new Set(products.map((product) => product.type))], [products]);
@@ -96,16 +80,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
 
   return (
     <>
-      <header className="isolate sticky top-3 z-50 mx-auto flex h-16 w-[calc(100%-24px)] max-w-7xl items-center rounded-full border border-line bg-white/90 px-4 backdrop-blur-xl sm:px-5">
-        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="relative z-10 flex h-10 items-center" aria-label="На початок сторінки">
-          <Image src="/nami-logo.png" alt="Nami" width={1304} height={384} priority className="h-8 w-auto" />
-        </button>
-        <nav className="absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-1" aria-label="Категорії">
-          <button onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })} className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-white transition sm:px-5 sm:text-sm">Килимки</button>
-        </nav>
-        <div className="relative z-10 ml-auto flex items-center"><button className="icon-button hidden sm:grid" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-5" /></button><button data-cart-toggle className="icon-button focus:ring-0 focus:ring-offset-0 active:ring-2 active:ring-ink active:ring-offset-2" onClick={cart.toggle} aria-label="Відкрити кошик" aria-expanded={cart.isOpen}><ShoppingBag className="size-5" />{itemCount > 0 && <span className="absolute right-0 top-0 grid size-5 place-items-center rounded-full bg-ink font-mono text-[9px] text-white">{itemCount}</span>}</button></div>
-        <CartDrawer />
-      </header>
+      <SiteHeader onSearch={() => setSearchOpen(true)} />
 
       <main>
         <section className="relative mx-3 -mt-[52px] min-h-[600px] overflow-hidden rounded-[28px] bg-sand lg:min-h-[calc(100vh-24px)]" aria-label="Популярні товари" aria-roledescription="carousel">
@@ -164,7 +139,7 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
               return (
                 <div key={`${product.id}-${slideIndex}`} className="min-w-full" aria-hidden={isClone || undefined}>
                   <div className="mx-auto grid min-h-[600px] max-w-7xl items-center gap-8 px-6 pb-16 pt-32 lg:min-h-[calc(100vh-24px)] lg:grid-cols-2 lg:px-12 lg:pb-16 lg:pt-28">
-                    <div className="max-w-xl"><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-warm">★ {product.series}</p><h1 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-6xl">{product.name}</h1><p className="mt-5 max-w-lg text-base leading-7 text-muted">{product.tagline}</p><p className="mt-6 font-display text-xl font-bold">від {formatUAH(product.price)}</p><div className="mt-7 flex flex-wrap gap-3"><button tabIndex={isClone ? -1 : undefined} className="btn-primary" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })}>Переглянути каталог</button><button tabIndex={isClone ? -1 : undefined} className="btn-secondary" onClick={() => setSelected(product)}>Швидкий перегляд</button></div></div>
+                    <div className="max-w-xl"><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-warm">★ {product.series}</p><h2 className="mt-4 font-display text-4xl font-bold tracking-tight sm:text-6xl">{product.name}</h2><p className="mt-5 max-w-lg text-base leading-7 text-muted">{product.tagline}</p><p className="mt-6 font-display text-xl font-bold">від {formatUAH(product.price)}</p><div className="mt-7 flex flex-wrap gap-3"><button tabIndex={isClone ? -1 : undefined} className="btn-primary" onClick={() => document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" })}>Переглянути каталог</button><button tabIndex={isClone ? -1 : undefined} className="btn-secondary" onClick={() => setSelected(product)}>Швидкий перегляд</button></div></div>
                     <ProductVisual product={product} className="aspect-square rounded-3xl" />
                   </div>
                 </div>
@@ -191,13 +166,13 @@ export function Storefront({ initialProducts }: { initialProducts: Product[] }) 
         </section>
 
         <section id="catalog" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 lg:py-20">
-          <div className="flex items-end justify-between gap-4"><div><h2 className="font-display text-3xl font-bold tracking-tight">Килимки</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Тканинні поверхні Artisan для різних стилів наведення.</p></div><div className="flex gap-2 sm:hidden"><button className="icon-button border border-line" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-4" /></button></div></div>
+          <div className="flex items-end justify-between gap-4"><div><h1 className="font-display text-3xl font-bold tracking-tight">Ігрові килимки Artisan</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Оригінальні тканинні килимки для миші з Японії: швидкі, контрольні та збалансовані поверхні під будь-який стиль наведення.</p></div><div className="flex gap-2 sm:hidden"><button className="icon-button border border-line" onClick={() => setSearchOpen(true)} aria-label="Пошук"><Search className="size-4" /></button></div></div>
           <div className="relative mt-6 flex justify-end" ref={filterRef}><button onClick={() => setFiltersOpen((value) => !value)} className="btn-secondary min-h-10 px-4 normal-case" aria-expanded={filtersOpen}><Filter className="size-4" />Фільтри{activeFilterCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-ink font-mono text-[9px] text-white">{activeFilterCount}</span>}<ChevronDown className={`size-4 transition ${filtersOpen ? "rotate-180" : ""}`} /></button>{filtersOpen && <FilterPanel brands={brands} materials={materials} types={types} values={{ brand, material, type }} onBrand={setBrand} onMaterial={setMaterial} onType={setType} onReset={() => { setBrand("all"); setMaterial("all"); setType("all"); }} />}</div>
           {filtered.length ? <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map((product) => <ProductCard key={product.id} product={product} onSelect={setSelected} />)}</div> : <div className="mt-6 rounded-3xl border border-dashed border-line bg-sand p-14 text-center"><SlidersHorizontal className="mx-auto size-6 text-muted" /><h3 className="mt-4 font-display text-lg font-semibold">Товарів не знайдено</h3><button className="btn-secondary mt-5" onClick={() => { setBrand("all"); setMaterial("all"); setType("all"); }}>Скинути фільтри</button></div>}
         </section>
       </main>
 
-      <footer className="border-t border-line"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-mono">© 2026 Nami Gear · made by <a className="hover:text-ink" href="https://aokigahara.dev">Aokigahara</a></p><div className="flex flex-wrap gap-5"><a className="hover:text-ink" href="mailto:lanovui0902@gmail.com">lanovui0902@gmail.com</a><a className="hover:text-ink" href="https://t.me/A0klgahara" target="_blank" rel="noreferrer">Telegram: @A0klgahara</a></div></div></footer>
+      <SiteFooter />
       <SearchDialog open={searchOpen} products={products} onClose={() => setSearchOpen(false)} onSelect={setSelected} />
       <ProductModal product={selected} variants={selected ? artisanStock?.products[selected.id]?.variants : undefined} onClose={() => setSelected(null)} />
     </>

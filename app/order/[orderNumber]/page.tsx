@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OrderPayment } from "@/components/order-payment";
 
 export const metadata: Metadata = {
-  title: "Оплата замовлення · Nami Gear",
+  title: "Оплата замовлення",
   robots: { index: false, follow: false }
 };
 

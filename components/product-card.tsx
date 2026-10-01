@@ -1,9 +1,11 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useState, type MouseEvent } from "react";
 import type { Product } from "@/lib/types";
 import { ARTISAN_LEAD_TIME, formatUAH, materialLabels } from "@/lib/catalog";
+import { productPath } from "@/lib/site";
 import { ProductVisual } from "./product-visual";
 
 const stockLabels = {
@@ -24,15 +26,22 @@ export function ProductCard({ product, onSelect }: { product: Product; onSelect:
     ]
   });
 
+  // Plain clicks open the quick-view modal; crawlers and modified clicks follow the product page link.
+  const openQuickView = (event: MouseEvent) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    onSelect(selectedProduct());
+  };
+
   return (
     <article className="group overflow-hidden rounded-3xl border border-black/[.04] bg-white shadow-card transition hover:-translate-y-1 hover:shadow-soft">
-      <button onClick={() => onSelect(selectedProduct())} className="relative block aspect-[4/3] w-full overflow-hidden text-left">
+      <Link href={productPath(product.id)} onClick={openQuickView} className="relative block aspect-[4/3] w-full overflow-hidden text-left">
         {badge && <span className={`absolute left-3 top-3 z-10 rounded-full px-3 py-1.5 font-mono text-[9px] font-semibold uppercase ${badge.classes}`}>{badge.text}</span>}
         <ProductVisual product={product} color={color} className="h-full w-full" />
-      </button>
+      </Link>
       <div className="flex min-h-60 flex-col p-5">
         <p className="font-mono text-[9px] uppercase tracking-widest text-warm">{product.brand} · {materialLabels[product.material]}</p>
-        <button className="mt-2 text-left text-lg font-semibold hover:text-warm" onClick={() => onSelect(selectedProduct())}>{product.name}</button>
+        <Link href={productPath(product.id)} onClick={openQuickView} className="mt-2 text-left text-lg font-semibold hover:text-warm">{product.name}</Link>
         <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted">{product.tagline}</p>
         {product.colors.length > 0 && (
           <div className="mt-4 flex items-center gap-2" aria-label={`Колір: ${color}`}>
