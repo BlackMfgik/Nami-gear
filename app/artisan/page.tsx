@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/artisan" },
-  openGraph: { title, description, url: "/artisan" }
+  openGraph: { title, description, url: "/artisan", images: [{ url: "/opengraph-image.jpg", width: 1200, height: 630, alt: "Ігрові килимки Artisan з Японії · Nami Gear" }] }
 };
 
 export default async function ArtisanPage() {

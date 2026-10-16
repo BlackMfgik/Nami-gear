@@ -59,7 +59,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical: productPath(product.id) },
-    openGraph: { title, description, url: productPath(product.id), images: [{ url: absoluteUrl(product.image), alt: `${product.brand} ${product.name}` }] }
+    openGraph: { title, description, url: productPath(product.id), images: [{ url: absoluteUrl(product.image), alt: `${product.brand} ${product.name}` }] },
+    twitter: { images: [absoluteUrl(product.image)] }
   };
 }
 
